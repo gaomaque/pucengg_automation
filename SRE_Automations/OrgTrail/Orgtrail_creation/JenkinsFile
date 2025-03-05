@@ -1,0 +1,122 @@
+import groovy.util.Node
+import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
+
+pipeline {
+    agent any
+    stages {
+        stage('Setup parameters') {
+            steps {
+                script {
+                    properties([
+                        parameters([
+                              
+                            base64File (
+                                name: 'AccountList',
+                                description:'Upload a valid json file with key value pairs'
+                            ),
+                            choice(
+                                choices: ['create','delete'],
+                                description: 'CloudTrail create/delete',
+                                name: 'Action'
+                            ),
+                            choice(
+                                choices:[ 'global','china'],
+                                description: 'Please select the Region Type',
+                                name: 'Region_Type'
+
+                            ),
+                            string(
+                                defaultValue: '',
+                                description: 'Temporary RCC AWS Access Key.',
+                                name: 'AWSAccessKey',
+                                trim: true
+                            ),
+                            password(
+                                description: 'Temporary RCC AWS Secret Key.',
+                                name: 'AWSSecretKey'
+                            ),
+                        password(
+                                description: 'Temporary RCC AWS Secret Session Token.',
+                                name: 'AWSSessionToken'
+                            ),
+
+                        ])
+                    ])
+                }
+            }
+        }
+
+        stage('checkout code') {
+            steps {
+                cleanWs()
+                checkout scm
+            }
+        }
+
+        stage('Assume target account role') {
+            steps {
+                script {
+                    
+                    withFileParameter('AccountList'){
+                    sh 'cat $AccountList > AccountList.json'
+                    }
+
+                    env.accountlistpath = env.WORKSPACE+"/AccountList.json"
+
+                    def jenkinsAccount = execSH("aws sts get-caller-identity")
+                    print(jenkinsAccount)                                                         
+
+                }
+            }  
+           } 
+
+        stage('Creating Resources') {
+             steps {
+                script { 
+                    def awsRegions                                              
+                    if (params.Region_Type == "china"){
+                       awsRegions = ["cn-north-1","cn-northwest-1"] 
+                    }  else {                       
+                       awsRegions = ["eu-west-1","us-east-1","us-east-2","us-west-1","us-west-2","eu-west-2","eu-west-3","eu-central-1","eu-north-1","ap-south-1","ap-northeast-1","ap-northeast-2","ap-northeast-3","ap-southeast-1","ap-southeast-2","ca-central-1","sa-east-1"]
+                    }
+                    parallel awsRegions.collectEntries {awsRegion ->
+                    [
+                            
+                            "${awsRegion}":{
+
+                                stage("Executing in ${awsRegion}") {
+                                    
+                                    script{
+                                            env.region=awsRegion
+                                            env.AWS_ACCESS_KEY_ID = params.AWSAccessKey
+                                            env.AWS_SECRET_ACCESS_KEY = params.AWSSecretKey
+                                            env.AWS_SESSION_TOKEN = params.AWSSessionToken
+                                            sh'''
+                                            echo $region                                            
+                                            python3 SRE_Automations/OrgTrail/Orgtrail_creation/main.py --region $region --region_type $Region_Type
+                                            '''
+                                            } 
+                                }
+                            }
+                                    
+                            
+                    ]
+                    
+                        }
+                }
+             }
+        }
+
+        
+    }
+}
+
+def execSH(String command) {
+    def getAccount = sh (
+        script: command,
+        returnStdout: true
+    )
+    return readJSON(text: getAccount)
+}
+
