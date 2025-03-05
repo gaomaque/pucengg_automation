@@ -157,25 +157,14 @@ class UpdateTrail:
             cloudtrails = row['CloudTrail']
             loggings = row['IsLogging']
 
-'''                        
-            for i, region in enumerate(regions):
-                               
-                if i == 0:                      #so that account number doesn't print multiple times
-                    new_row = reorganized_df.concat({'Account': account, 'Region': region, 'CloudTrail': cloudtrails[i].replace("[",'').replace("]",'').replace("'",''), 'IsLogging': loggings[i].replace("[",'').replace("]",'')}, ignore_index=True)
-                    reorganized_df = pd.concat([reorganized_df, new_row], ignore_index=True)
-                else:
-                    new_row = reorganized_df.concat({'Account': '', 'Region': region, 'CloudTrail': cloudtrails[i].replace("[",'').replace("]",'').replace("'",''), 'IsLogging': loggings[i].replace("[",'').replace("]",'')}, ignore_index=True)
-                    reorganized_df = pd.concat([reorganized_df, new_row], ignore_index=True)
-
-        # Save the reorganized DataFrame to a new CSV file
-        reorganized_df.to_csv('Consolidated_Report.csv', index=False)
-'''                
-
             for i, region in enumerate(regions):
                 if i == 0:                      #so that account number doesn't print multiple times
                     reorganized_df = reorganized_df.append({'Account': account, 'Region': region, 'CloudTrail': cloudtrails[i].replace("[",'').replace("]",'').replace("'",''), 'IsLogging': loggings[i].replace("[",'').replace("]",'')}, ignore_index=True)
                 else:
                     reorganized_df = reorganized_df.append({'Account': '', 'Region': region, 'CloudTrail': cloudtrails[i].replace("[",'').replace("]",'').replace("'",''), 'IsLogging': loggings[i].replace("[",'').replace("]",'')}, ignore_index=True)
+
+        # Save the reorganized DataFrame to a new CSV file
+        reorganized_df.to_csv('Consolidated_Report.csv', index=False)
 
     def main(self):
         self.set_attribute_values()
