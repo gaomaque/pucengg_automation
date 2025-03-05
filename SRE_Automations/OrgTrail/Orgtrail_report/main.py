@@ -172,7 +172,6 @@ class UpdateTrail:
 '''                
 
             for i, region in enumerate(regions):
-                                
                 if i == 0:                      #so that account number doesn't print multiple times
                     reorganized_df = reorganized_df.append({'Account': account, 'Region': region, 'CloudTrail': cloudtrails[i].replace("[",'').replace("]",'').replace("'",''), 'IsLogging': loggings[i].replace("[",'').replace("]",'')}, ignore_index=True)
                 else:
