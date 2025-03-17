@@ -1,0 +1,135 @@
+pipeline {
+    agent any
+    stages {
+        stage('Setup parameters') {
+            steps {
+                script {
+                    properties([
+                        parameters([
+                            choice(
+                                description: "Select the AWS region",
+                                name: 'Region',
+                                choices: [
+                                    'us-east-1',
+                                    'ap-southeast-2',
+                                    'sa-east-1',
+                                    'ca-central-1',
+                                    'eu-central-1',
+                                    'eu-west-3',
+                                    'eu-west-2',
+                                    'eu-west-1',
+                                    'ap-south-1',
+                                    'ap-northeast-3',
+                                    'ap-northeast-1',
+                                    'ap-northeast-2',
+                                    'eu-north-1',
+                                    'ap-southeast-1',
+                                    'us-west-1',
+                                    'us-east-2',
+                                    'us-west-2',
+                                    'cn-north-1',
+                                    'cn-northwest-1'
+                                ]
+                            ),
+                            choice(
+                                description: "Select the account",
+                                name: 'Account',
+                                choices: [
+                                    'MST',
+                                    'MSTTST',
+                                    'MSTCN',
+                                    'MSTTSTCN',
+                                    'CTR',
+                                    'CTRTST'
+                                ]
+                            ),
+                            choice(
+                                name: 'Action',
+                                choices: ['create','update']
+                            ),
+                            string(
+                                description: "sample NVSGISMST-ORGCLOUDTRAIL or NVSGISMSTCN-ORGCLOUDTRAIL",
+                                name: 'StackName'
+                            ),
+                            string(
+                                description: "Provide the Accesskey of role who has the access in the deployment account",
+                                name: 'Accesskey'                                
+                            ),
+                            password(
+                                description: "Provide the Secret Accesskey of role who has the access in the deployment account",
+                                name: 'SecretKey'
+                            ),
+                            password(
+                                description: "Provide the Session Token of role who has the access in the deployment account",
+                                name: 'SessionToken'
+                            )
+                        ])
+                    ])
+                }
+            }
+        }
+        stage ('Checkout code') {
+
+            steps {
+                cleanWs()
+                checkout scm
+
+                    checkout scm: [
+                    $class: 'GitSCM',
+                    userRemoteConfigs: [
+                        [
+                            url: "ssh://git@bitbucketenterprise.aws.novartis.net/tispucengg/pucengg_mst_org.git",
+                            credentialsId: "BitbucketKey"
+                        ]
+                    ],
+                    branches: [[name: 'feature/CLIN-31625']],                    
+                    extensions: [[$class: 'RelativeTargetDirectory', relativeTargetDir: 'MST']]
+                    ]                                                 
+                }
+            }
+        stage('Role Assumption') {
+            steps {
+                script {
+                    creds_resp = AssumeCredentials()
+                    assumeRoleResponse = execSH("""
+                        aws sts assume-role --role-arn arn:aws-cn:iam::702654413768:role/RIDY_AWS_AWSGLOBALJITCN01 \
+                        --role-session-name Temp --duration-seconds=3600
+                    """)
+                    env.AWS_ACCESS_KEY_ID = assumeRoleResponse.Credentials.AccessKeyId
+                    env.AWS_SECRET_ACCESS_KEY = assumeRoleResponse.Credentials.SecretAccessKey
+                    env.AWS_SESSION_TOKEN = assumeRoleResponse.Credentials.SessionToken
+                }
+            }
+        }        stage('Cloudtrail Create'){            
+            steps {
+                script {
+                        env.deploy_service = "cloudtrail_org"                                                
+                        sh ''' 
+                        cd SRE_Automations/OrgTrail/cloudtrail_org
+                        python3 main.py
+                        '''
+                        }
+            }
+        }
+    }
+}
+
+def AssumeCredentials(){
+
+        env.AWS_ACCESS_KEY_ID = params.Accesskey
+        env.AWS_SECRET_ACCESS_KEY = params.SecretKey
+        env.AWS_SESSION_TOKEN = params.SessionToken
+        env.AWS_DEFAULT_REGION = params.Region
+        def target_account = execSH("aws sts get-caller-identity")
+        print(target_account)
+}
+
+def execSH(String command) {
+    def getAccount = sh (
+        script: command,
+        returnStdout: true
+    )
+    return readJSON(text: getAccount)
+}
+
+
