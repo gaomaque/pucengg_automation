@@ -165,13 +165,12 @@ class ManageStack:
                 logger.info(f"Stack {stack!r} does not exist: {exc}")
                 return []
             else:
-                logger.exception(f"Error while describing stack: {exc}")
+                logger.exception(f"Error while describing stack: {exc}. Response: {exc.response}")
                 return []
         except Exception as e:
-            logger.exception(f"Unexpected error: {e}")
+            logger.exception(f"Unexpected error: {e}. Boto3 client region: {self.cfn_client.meta.region_name}")
             return []
         return resp.get("Stacks", [])
-
     def create_stack(
         self,
         stack: str,
